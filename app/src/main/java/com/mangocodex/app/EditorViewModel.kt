@@ -2,10 +2,10 @@ package com.mangocodex.app
 
 import android.content.Context
 import android.net.Uri
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,11 +16,12 @@ class EditorViewModel : ViewModel() {
 
     private var lexer: Lexer = Lexer(emptyList())
 
-    private val _lines = MutableStateFlow<List<String>>(listOf(""))
-    val lines: StateFlow<List<String>> = _lines
+    // Single source of truth: full text as TextFieldValue (cursor, selection included)
+    private val _fieldValue = MutableStateFlow(TextFieldValue(""))
+    val fieldValue: StateFlow<TextFieldValue> = _fieldValue
 
-    private val _highlightedLines = MutableStateFlow<List<AnnotatedString>>(listOf(AnnotatedString("")))
-    val highlightedLines: StateFlow<List<AnnotatedString>> = _highlightedLines
+    private val _highlighted = MutableStateFlow(AnnotatedString(""))
+    val highlighted: StateFlow<AnnotatedString> = _highlighted
 
     private val _currentFileUri = MutableStateFlow<Uri?>(null)
     val currentFileUri: StateFlow<Uri?> = _currentFileUri
@@ -28,16 +29,16 @@ class EditorViewModel : ViewModel() {
     private val _isDirty = MutableStateFlow(false)
     val isDirty: StateFlow<Boolean> = _isDirty
 
+    private var isPatternFile = false
+
     fun loadPatterns(context: Context) {
         val csv = loadPatternsFromInternal(context)
             ?: context.assets.open(PATTERNS_INTERNAL_PATH).bufferedReader().readText()
         lexer = Lexer.fromCsv(csv)
-        rehighlightAll()
+        rehighlight()
     }
 
-    fun reloadPatterns(context: Context) {
-        loadPatterns(context)
-    }
+    fun reloadPatterns(context: Context) = loadPatterns(context)
 
     private fun loadPatternsFromInternal(context: Context): String? {
         val file = context.getFileStreamPath(PATTERNS_INTERNAL_PATH)
@@ -48,12 +49,12 @@ class EditorViewModel : ViewModel() {
         val text = context.contentResolver.openInputStream(uri)
             ?.bufferedReader()?.readText() ?: return
         _currentFileUri.value = uri
-        setContent(text)
+        isPatternFile = false
+        setText(text)
         _isDirty.value = false
     }
 
     fun openInternalPatterns(context: Context) {
-        // Ensure internal patterns file exists (copy from assets if not)
         val file = context.getFileStreamPath(PATTERNS_INTERNAL_PATH)
         if (!file.exists()) {
             val default = context.assets.open(PATTERNS_INTERNAL_PATH).bufferedReader().readText()
@@ -61,84 +62,68 @@ class EditorViewModel : ViewModel() {
                 it.write(default)
             }
         }
-        setContent(file.readText())
-        _currentFileUri.value = null // virtual path, not a real URI
+        _currentFileUri.value = null
+        isPatternFile = true
+        setText(file.readText())
         _isDirty.value = false
     }
 
     fun saveFile(context: Context, uri: Uri? = _currentFileUri.value) {
+        if (isPatternFile) { saveInternalPatterns(context); return }
         uri ?: return
-        val text = _lines.value.joinToString("\n")
         context.contentResolver.openOutputStream(uri, "wt")?.writer()?.use {
-            it.write(text)
+            it.write(_fieldValue.value.text)
         }
         _isDirty.value = false
     }
 
+    fun saveAs(context: Context, uri: Uri) {
+        context.contentResolver.openOutputStream(uri, "wt")?.writer()?.use {
+            it.write(_fieldValue.value.text)
+        }
+        _currentFileUri.value = uri
+        isPatternFile = false
+        _isDirty.value = false
+    }
+
     fun saveInternalPatterns(context: Context) {
-        val text = _lines.value.joinToString("\n")
         context.openFileOutput(PATTERNS_INTERNAL_PATH, Context.MODE_PRIVATE).writer().use {
-            it.write(text)
+            it.write(_fieldValue.value.text)
         }
         _isDirty.value = false
         reloadPatterns(context)
     }
 
-    fun updateLine(index: Int, newText: String) {
-        val current = _lines.value.toMutableList()
-
-        // Handle newlines inserted by soft keyboard
-        if ('\n' in newText) {
-            val parts = newText.split("\n")
-            current[index] = parts[0]
-            parts.drop(1).forEachIndexed { i, part ->
-                current.add(index + 1 + i, part)
-            }
-        } else {
-            current[index] = newText
-        }
-
-        _lines.value = current
-        _isDirty.value = true
-        rehighlightLine(index)
-    }
-
-    fun deleteLine(index: Int) {
-        if (_lines.value.size <= 1) return
-        val current = _lines.value.toMutableList()
-        current.removeAt(index)
-        _lines.value = current
-        _isDirty.value = true
-        rehighlightAll()
-    }
-
-    private fun setContent(text: String) {
-        _lines.value = text.split("\n").ifEmpty { listOf("") }
-        rehighlightAll()
-    }
-
-    private fun rehighlightAll() {
-        _highlightedLines.value = _lines.value.map { highlight(it) }
-    }
-
-    private fun rehighlightLine(index: Int) {
-        val updated = _highlightedLines.value.toMutableList()
-        if (index < updated.size) {
-            updated[index] = highlight(_lines.value[index])
-            _highlightedLines.value = updated
+    fun onValueChange(newVal: TextFieldValue) {
+        val textChanged = newVal.text != _fieldValue.value.text
+        _fieldValue.value = newVal
+        if (textChanged) {
+            _isDirty.value = true
+            rehighlight()
         }
     }
 
-    private fun highlight(line: String): AnnotatedString {
-        val tokens = lexer.tokenize(line)
-        return buildAnnotatedString {
-            append(line)
-            for (token in tokens) {
-                addStyle(
-                    SpanStyle(color = token.color),
-                    token.start,
-                    token.end.coerceAtMost(line.length)
-                )
+    private fun setText(text: String) {
+        _fieldValue.value = TextFieldValue(text)
+        rehighlight()
+    }
+
+    private fun rehighlight() {
+        val text = _fieldValue.value.text
+        val lines = text.split("\n")
+        _highlighted.value = buildAnnotatedString {
+            append(text)
+            var offset = 0
+            for (line in lines) {
+                val tokens = lexer.tokenize(line)
+                for (token in tokens) {
+                    addStyle(
+                        SpanStyle(color = token.color),
+                        offset + token.start,
+                        (offset + token.end).coerceAtMost(offset + line.length)
+                    )
+                }
+                offset += line.length + 1 // +1 for \n
             }
         }
     }

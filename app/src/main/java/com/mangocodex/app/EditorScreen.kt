@@ -4,46 +4,44 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 val BG = Color(0xFF1E1E1E)
-val LINE_NUM = Color(0xFF858585)
 val FG = Color(0xFFD4D4D4)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(viewModel: EditorViewModel) {
     val context = LocalContext.current
-    val lines by viewModel.lines.collectAsState()
-    val highlighted by viewModel.highlightedLines.collectAsState()
+    val fieldValue by viewModel.fieldValue.collectAsState()
+    val highlighted by viewModel.highlighted.collectAsState()
     val isDirty by viewModel.isDirty.collectAsState()
     val currentUri by viewModel.currentFileUri.collectAsState()
 
     var showMenu by remember { mutableStateOf(false) }
-    var isPatternFile by remember { mutableStateOf(false) }
 
     val openLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? -> uri?.let { viewModel.openFile(context, it); isPatternFile = false } }
+    ) { uri: Uri? -> uri?.let { viewModel.openFile(context, it) } }
 
     val saveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain")
-    ) { uri: Uri? -> uri?.let { viewModel.saveFile(context, it) } }
+    ) { uri: Uri? -> uri?.let { viewModel.saveAs(context, it) } }
 
     Scaffold(
         topBar = {
@@ -75,8 +73,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
                             DropdownMenuItem(
                                 text = { Text("Save") },
                                 onClick = {
-                                    if (isPatternFile) viewModel.saveInternalPatterns(context)
-                                    else currentUri?.let { viewModel.saveFile(context, it) }
+                                    viewModel.saveFile(context)
                                     showMenu = false
                                 }
                             )
@@ -92,7 +89,6 @@ fun EditorScreen(viewModel: EditorViewModel) {
                                 text = { Text("Edit patterns") },
                                 onClick = {
                                     viewModel.openInternalPatterns(context)
-                                    isPatternFile = true
                                     showMenu = false
                                 }
                             )
@@ -110,51 +106,24 @@ fun EditorScreen(viewModel: EditorViewModel) {
         },
         containerColor = BG
     ) { padding ->
-        LazyColumn(
+        // Merge cursor/selection from fieldValue with highlighting from VM
+        val displayValue = fieldValue.copy(annotatedString = highlighted)
+
+        BasicTextField(
+            value = displayValue,
+            onValueChange = { viewModel.onValueChange(it) },
+            textStyle = TextStyle(
+                color = FG,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 13.sp,
+                lineHeight = 20.sp
+            ),
+            cursorBrush = SolidColor(FG),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(BG)
-        ) {
-            itemsIndexed(lines) { index, line ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    // Line number
-                    Text(
-                        text = "%4d".format(index + 1),
-                        color = LINE_NUM,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
-
-                    // Local cursor state per line
-                    val annotated = highlighted.getOrElse(index) { androidx.compose.ui.text.AnnotatedString(line) }
-                    var fieldValue by remember(index) { mutableStateOf(TextFieldValue(annotated)) }
-
-                    BasicTextField(
-                        value = fieldValue,
-                        onValueChange = { newVal ->
-                            if (!newVal.text.contains('\n')) {
-                                fieldValue = newVal
-                                viewModel.updateLine(index, newVal.text)
-                            }
-                        },
-                        textStyle = TextStyle(
-                            color = FG,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 13.sp,
-                            lineHeight = 20.sp
-                        ),
-                        cursorBrush = SolidColor(FG),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                    )
-                }
-            }
-        }
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        )
     }
 }
