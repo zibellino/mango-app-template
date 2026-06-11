@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.mangocodex.app"
+    namespace = "com.mangocodex"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mangocodex.app"
+        applicationId = "com.mangocodex"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
