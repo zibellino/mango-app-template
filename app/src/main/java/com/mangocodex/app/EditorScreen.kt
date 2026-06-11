@@ -66,7 +66,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
                             DropdownMenuItem(
                                 text = { Text("Open file") },
                                 onClick = {
-                                    openLauncher.launch(arrayOf("text/*"))
+                                    openLauncher.launch(arrayOf("*/*"))
                                     showMenu = false
                                 }
                             )
