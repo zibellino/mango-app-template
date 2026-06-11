@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextFieldValue
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -129,20 +130,20 @@ fun EditorScreen(viewModel: EditorViewModel) {
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                     )
 
-                    // Editable line with highlighting
-                    val annotated = highlighted.getOrElse(index) {
-                        androidx.compose.ui.text.AnnotatedString(line)
+                    // Local cursor state per line
+                    val annotated = highlighted.getOrElse(index) { androidx.compose.ui.text.AnnotatedString(line) }
+                    var fieldValue by remember(index) { mutableStateOf(TextFieldValue(annotated)) }
+
+                    // Sync highlighting changes from VM without clobbering cursor
+                    LaunchedEffect(annotated) {
+                        fieldValue = fieldValue.copy(annotatedString = annotated)
                     }
 
                     BasicTextField(
-                        value = androidx.compose.ui.text.input.TextFieldValue(annotated),
+                        value = fieldValue,
                         onValueChange = { newVal ->
-                            val newText = newVal.text
-                            if ('\n' in newText) {
-                                viewModel.updateLine(index, newText)
-                            } else {
-                                viewModel.updateLine(index, newText)
-                            }
+                            fieldValue = newVal
+                            viewModel.updateLine(index, newVal.text)
                         },
                         textStyle = TextStyle(
                             color = FG,
