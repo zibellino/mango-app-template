@@ -137,8 +137,10 @@ fun EditorScreen(viewModel: EditorViewModel) {
                     BasicTextField(
                         value = fieldValue,
                         onValueChange = { newVal ->
-                            fieldValue = newVal
-                            viewModel.updateLine(index, newVal.text)
+                            if (!newVal.text.contains('\n')) {
+                                fieldValue = newVal
+                                viewModel.updateLine(index, newVal.text)
+                            }
                         },
                         textStyle = TextStyle(
                             color = FG,
