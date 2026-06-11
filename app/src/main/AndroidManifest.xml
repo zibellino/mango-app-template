@@ -5,7 +5,6 @@
         android:allowBackup="true"
         android:label="MangoCodex"
         android:icon="@drawable/ic_launcher"
-        android:roundIcon="@drawable/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MangoCodex">
 
