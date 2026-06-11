@@ -134,11 +134,6 @@ fun EditorScreen(viewModel: EditorViewModel) {
                     val annotated = highlighted.getOrElse(index) { androidx.compose.ui.text.AnnotatedString(line) }
                     var fieldValue by remember(index) { mutableStateOf(TextFieldValue(annotated)) }
 
-                    // Sync highlighting changes from VM without clobbering cursor
-                    LaunchedEffect(annotated) {
-                        fieldValue = fieldValue.copy(annotatedString = annotated)
-                    }
-
                     BasicTextField(
                         value = fieldValue,
                         onValueChange = { newVal ->
