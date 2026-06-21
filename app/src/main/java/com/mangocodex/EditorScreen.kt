@@ -115,28 +115,14 @@ fun EditorScreen(viewModel: EditorViewModel) {
         },
         containerColor = BG
     ) { padding ->
-        // Merge cursor/selection from fieldValue with highlighting from VM.
-        // Keyed remember() avoids a new identity (and a busted text-layout
-        // cache) on recompositions where neither input actually changed.
         val displayValue = remember(fieldValue, highlighted) {
             fieldValue.copy(annotatedString = highlighted)
         }
 
-        // Scrolling is now explicit (instead of BasicTextField's internal
-        // auto-scroll) so we can read scroll position and feed the view
-        // model a visible-range update -- that's what drives windowed
-        // styling below.
         val scrollState = rememberScrollState()
         var viewportHeightPx by remember { mutableStateOf(0) }
         var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
-        // BasicTextField normally auto-scrolls to bring the cursor into view
-        // whenever it gains focus -- which happens on every tap into an
-        // unfocused field, before the tap's actual cursor position has been
-        // applied. That caused taps anywhere in the document to jump the
-        // view back to the old (often stale, offset-0) cursor position
-        // first. We own scrolling manually here via verticalScroll, so this
-        // auto-scroll is both redundant and actively wrong; disable it.
         val noOpBringIntoView = remember {
             object : BringIntoViewSpec {
                 override fun calculateScrollDistance(
@@ -147,10 +133,6 @@ fun EditorScreen(viewModel: EditorViewModel) {
             }
         }
 
-        // Nothing focuses the field automatically otherwise -- on a fresh
-        // launch there's no prior tap to trigger focus, so an empty new
-        // document would be untypeable until the user happened to tap the
-        // (empty, thus tiny) content area. Request focus once, up front.
         val focusRequester = remember { FocusRequester() }
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
@@ -184,13 +166,6 @@ fun EditorScreen(viewModel: EditorViewModel) {
             }
         }
 
-        // Re-evaluate which lines need styling once scrolling settles, not
-        // on every pixel of the gesture. Recomputing mid-scroll is exactly
-        // what was still causing stutter: each recompute hands the field a
-        // new AnnotatedString, which forces a full re-shape/re-layout of the
-        // whole document, not just a style patch. The margin in the view
-        // model absorbs short scrolls entirely; only a long continuous
-        // scroll shows a brief unstyled gap until it catches up here.
         LaunchedEffect(scrollState) {
             snapshotFlow { Triple(scrollState.value, viewportHeightPx, layoutResult) }
                 .distinctUntilChanged()
