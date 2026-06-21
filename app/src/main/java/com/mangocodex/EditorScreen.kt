@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -21,10 +22,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.debounce
@@ -41,6 +44,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
     val highlighted by viewModel.highlighted.collectAsState()
     val isDirty by viewModel.isDirty.collectAsState()
     val currentUri by viewModel.currentFileUri.collectAsState()
+    val wrapLines by viewModel.wrapLines.collectAsState()
 
     var showMenu by remember { mutableStateOf(false) }
 
@@ -108,6 +112,14 @@ fun EditorScreen(viewModel: EditorViewModel) {
                                     showMenu = false
                                 }
                             )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(if (wrapLines) "✓ Wrap lines" else "Wrap lines") },
+                                onClick = {
+                                    viewModel.toggleWrapLines()
+                                    showMenu = false
+                                }
+                            )
                         }
                     }
                 }
@@ -119,9 +131,15 @@ fun EditorScreen(viewModel: EditorViewModel) {
             fieldValue.copy(annotatedString = highlighted)
         }
 
+        val density = LocalDensity.current
         val scrollState = rememberScrollState()
-        var viewportHeightPx by remember { mutableStateOf(0) }
+        val horizontalScrollState = rememberScrollState()
+        var viewportSize by remember { mutableStateOf(IntSize.Zero) }
         var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+        LaunchedEffect(wrapLines) {
+            horizontalScrollState.scrollTo(0)
+        }
 
         val noOpBringIntoView = remember {
             object : BringIntoViewSpec {
@@ -143,14 +161,16 @@ fun EditorScreen(viewModel: EditorViewModel) {
                 .fillMaxSize()
                 .padding(padding)
                 .background(BG)
-                .onSizeChanged { viewportHeightPx = it.height }
+                .onSizeChanged { viewportSize = it }
                 .verticalScroll(scrollState)
+                .let { if (wrapLines) it else it.horizontalScroll(horizontalScrollState) }
         ) {
             CompositionLocalProvider(LocalBringIntoViewSpec provides noOpBringIntoView) {
                 BasicTextField(
                     value = displayValue,
                     onValueChange = { viewModel.onValueChange(it) },
                     onTextLayout = { layoutResult = it },
+                    softWrap = wrapLines,
                     textStyle = TextStyle(
                         color = FG,
                         fontFamily = FontFamily.Monospace,
@@ -159,7 +179,14 @@ fun EditorScreen(viewModel: EditorViewModel) {
                     ),
                     cursorBrush = SolidColor(FG),
                     modifier = Modifier
-                        .fillMaxSize()
+                        .let {
+                            if (wrapLines) {
+                                it.fillMaxSize()
+                            } else {
+                                val minWidth = with(density) { viewportSize.width.toDp() }
+                                it.fillMaxHeight().widthIn(min = minWidth)
+                            }
+                        }
                         .focusRequester(focusRequester)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
@@ -167,7 +194,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
         }
 
         LaunchedEffect(scrollState) {
-            snapshotFlow { Triple(scrollState.value, viewportHeightPx, layoutResult) }
+            snapshotFlow { Triple(scrollState.value, viewportSize.height, layoutResult) }
                 .distinctUntilChanged()
                 .debounce(120)
                 .collect { (scrollOffset, viewportHeight, result) ->
