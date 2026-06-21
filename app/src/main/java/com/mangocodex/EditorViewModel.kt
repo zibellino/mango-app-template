@@ -138,7 +138,7 @@ class EditorViewModel : ViewModel() {
                         SpanStyle(color = token.color),
                         offset + token.start,
                         (offset + token.end).coerceAtMost(offset + line.length)
-                    ) */
+                    )  */
                 }
                 offset += line.length + 1 // +1 for \n
             }
