@@ -6,7 +6,7 @@ comment_close,#6A9955,^\s*\*/.*
 preprocessor,#C586C0,^\s*#\w+.*
 string,#CE9178,"[^"]*"
 char,#CE9178,'[^']*'
-number,#B5CEA8,\b\d+\.?\d*([eE][+-]?\d+)?\b
+number,#B5CEA8,(?<!\w)[+-]?\d+\.?\d*([eE][+-]?\d+)?\b
 keyword,#569CD6,\b(if|else|for|while|do|switch|case|break|continue|return|goto|default)\b
 type,#4EC9B0,\b(int|char|float|double|long|short|unsigned|signed|void|bool|auto|const|static|struct|enum|union|typedef)\b
 xml_open_tag,#569CD6,</?[\w:]+
