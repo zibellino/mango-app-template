@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -125,6 +127,23 @@ fun EditorScreen(viewModel: EditorViewModel) {
         var viewportHeightPx by remember { mutableStateOf(0) }
         var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+        // BasicTextField normally auto-scrolls to bring the cursor into view
+        // whenever it gains focus -- which happens on every tap into an
+        // unfocused field, before the tap's actual cursor position has been
+        // applied. That caused taps anywhere in the document to jump the
+        // view back to the old (often stale, offset-0) cursor position
+        // first. We own scrolling manually here via verticalScroll, so this
+        // auto-scroll is both redundant and actively wrong; disable it.
+        val noOpBringIntoView = remember {
+            object : BringIntoViewSpec {
+                override fun calculateScrollDistance(
+                    offset: Float,
+                    size: Float,
+                    containerSize: Float
+                ) = 0f
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -133,21 +152,23 @@ fun EditorScreen(viewModel: EditorViewModel) {
                 .onSizeChanged { viewportHeightPx = it.height }
                 .verticalScroll(scrollState)
         ) {
-            BasicTextField(
-                value = displayValue,
-                onValueChange = { viewModel.onValueChange(it) },
-                onTextLayout = { layoutResult = it },
-                textStyle = TextStyle(
-                    color = FG,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                ),
-                cursorBrush = SolidColor(FG),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            CompositionLocalProvider(LocalBringIntoViewSpec provides noOpBringIntoView) {
+                BasicTextField(
+                    value = displayValue,
+                    onValueChange = { viewModel.onValueChange(it) },
+                    onTextLayout = { layoutResult = it },
+                    textStyle = TextStyle(
+                        color = FG,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp
+                    ),
+                    cursorBrush = SolidColor(FG),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
         }
 
         // Re-evaluate which lines need styling once scrolling settles, not
