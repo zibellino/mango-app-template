@@ -14,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -145,6 +147,15 @@ fun EditorScreen(viewModel: EditorViewModel) {
             }
         }
 
+        // Nothing focuses the field automatically otherwise -- on a fresh
+        // launch there's no prior tap to trigger focus, so an empty new
+        // document would be untypeable until the user happened to tap the
+        // (empty, thus tiny) content area. Request focus once, up front.
+        val focusRequester = remember { FocusRequester() }
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -166,7 +177,8 @@ fun EditorScreen(viewModel: EditorViewModel) {
                     ),
                     cursorBrush = SolidColor(FG),
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
+                        .focusRequester(focusRequester)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
