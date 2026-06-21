@@ -134,11 +134,11 @@ class EditorViewModel : ViewModel() {
                 val line = lines[i]
                 val tokens = tokensPerLine[i]
                 for (token in tokens) {
-                    /* addStyle(
+                    addStyle(
                         SpanStyle(color = token.color),
                         offset + token.start,
                         (offset + token.end).coerceAtMost(offset + line.length)
-                    )  */
+                    )
                 }
                 offset += line.length + 1 // +1 for \n
             }
