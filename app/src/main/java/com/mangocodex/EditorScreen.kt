@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -12,14 +11,18 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 val BG = Color(0xFF1E1E1E)
 val FG = Color(0xFFD4D4D4)
@@ -107,30 +110,60 @@ fun EditorScreen(viewModel: EditorViewModel) {
         containerColor = BG
     ) { padding ->
         // Merge cursor/selection from fieldValue with highlighting from VM.
-        // Keyed remember() is essential here: without it, this object gets a
-        // new identity on every recomposition -- including ones triggered
-        // purely by scrolling -- which invalidates Compose's text layout
-        // cache and forces a full-document re-layout every frame. Keying on
-        // both inputs means identity only changes when content actually does.
+        // Keyed remember() avoids a new identity (and a busted text-layout
+        // cache) on recompositions where neither input actually changed.
         val displayValue = remember(fieldValue, highlighted) {
             fieldValue.copy(annotatedString = highlighted)
         }
 
-        BasicTextField(
-            value = displayValue,
-            onValueChange = { viewModel.onValueChange(it) },
-            textStyle = TextStyle(
-                color = FG,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                lineHeight = 20.sp
-            ),
-            cursorBrush = SolidColor(FG),
+        // Scrolling is now explicit (instead of BasicTextField's internal
+        // auto-scroll) so we can read scroll position and feed the view
+        // model a visible-range update -- that's what drives windowed
+        // styling below.
+        val scrollState = rememberScrollState()
+        var viewportHeightPx by remember { mutableStateOf(0) }
+        var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(BG)
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        )
+                .onSizeChanged { viewportHeightPx = it.height }
+                .verticalScroll(scrollState)
+        ) {
+            BasicTextField(
+                value = displayValue,
+                onValueChange = { viewModel.onValueChange(it) },
+                onTextLayout = { layoutResult = it },
+                textStyle = TextStyle(
+                    color = FG,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                ),
+                cursorBrush = SolidColor(FG),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+
+        // Re-evaluate which lines need styling whenever scroll position or
+        // measured layout changes. The view model itself decides whether
+        // this is actually close enough to the window edge to act on it.
+        LaunchedEffect(scrollState) {
+            snapshotFlow { Triple(scrollState.value, viewportHeightPx, layoutResult) }
+                .distinctUntilChanged()
+                .collect { (scrollOffset, viewportHeight, result) ->
+                    if (result == null || result.lineCount == 0 || viewportHeight == 0) return@collect
+                    val top = scrollOffset.toFloat().coerceAtLeast(0f)
+                    val bottom = (scrollOffset + viewportHeight).toFloat()
+                        .coerceAtMost(result.size.height.toFloat())
+                    val startOffset = result.getOffsetForPosition(Offset(0f, top))
+                    val endOffset = result.getOffsetForPosition(Offset(0f, bottom))
+                    viewModel.updateVisibleRange(startOffset, endOffset)
+                }
+        }
     }
 }
