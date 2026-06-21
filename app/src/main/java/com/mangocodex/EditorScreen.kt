@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 val BG = Color(0xFF1E1E1E)
@@ -149,12 +150,17 @@ fun EditorScreen(viewModel: EditorViewModel) {
             )
         }
 
-        // Re-evaluate which lines need styling whenever scroll position or
-        // measured layout changes. The view model itself decides whether
-        // this is actually close enough to the window edge to act on it.
+        // Re-evaluate which lines need styling once scrolling settles, not
+        // on every pixel of the gesture. Recomputing mid-scroll is exactly
+        // what was still causing stutter: each recompute hands the field a
+        // new AnnotatedString, which forces a full re-shape/re-layout of the
+        // whole document, not just a style patch. The margin in the view
+        // model absorbs short scrolls entirely; only a long continuous
+        // scroll shows a brief unstyled gap until it catches up here.
         LaunchedEffect(scrollState) {
             snapshotFlow { Triple(scrollState.value, viewportHeightPx, layoutResult) }
                 .distinctUntilChanged()
+                .debounce(120)
                 .collect { (scrollOffset, viewportHeight, result) ->
                     if (result == null || result.lineCount == 0 || viewportHeight == 0) return@collect
                     val top = scrollOffset.toFloat().coerceAtLeast(0f)

@@ -14,7 +14,7 @@ const val PATTERNS_INTERNAL_PATH = "patterns.csv"
 
 // How many logical lines beyond the visible viewport stay styled, so fast
 // scrolling doesn't show a flash of plain text before re-styling catches up.
-private const val WINDOW_MARGIN_LINES = 60
+private const val WINDOW_MARGIN_LINES = 150
 
 // Only recompute the window once the visible range gets this close to the
 // edge of what's currently styled -- otherwise we'd rehighlight every pixel
