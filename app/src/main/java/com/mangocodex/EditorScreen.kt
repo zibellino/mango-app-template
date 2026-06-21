@@ -106,8 +106,15 @@ fun EditorScreen(viewModel: EditorViewModel) {
         },
         containerColor = BG
     ) { padding ->
-        // Merge cursor/selection from fieldValue with highlighting from VM
-        val displayValue = fieldValue.copy(annotatedString = highlighted)
+        // Merge cursor/selection from fieldValue with highlighting from VM.
+        // Keyed remember() is essential here: without it, this object gets a
+        // new identity on every recomposition -- including ones triggered
+        // purely by scrolling -- which invalidates Compose's text layout
+        // cache and forces a full-document re-layout every frame. Keying on
+        // both inputs means identity only changes when content actually does.
+        val displayValue = remember(fieldValue, highlighted) {
+            fieldValue.copy(annotatedString = highlighted)
+        }
 
         BasicTextField(
             value = displayValue,

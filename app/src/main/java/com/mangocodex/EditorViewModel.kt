@@ -31,10 +31,18 @@ class EditorViewModel : ViewModel() {
 
     private var isPatternFile = false
 
+    // Per-line tokenization cache used by rehighlight() to avoid re-running
+    // every regex rule against every line on every keystroke. Reset whenever
+    // the lexer's rule set changes, since cached tokens would otherwise be
+    // stale relative to the new rules.
+    private var prevLines: List<String> = emptyList()
+    private var prevTokens: List<List<Token>> = emptyList()
+
     fun loadPatterns(context: Context) {
         val csv = loadPatternsFromInternal(context)
             ?: context.assets.open(PATTERNS_INTERNAL_PATH).bufferedReader().readText()
         lexer = Lexer.fromCsv(csv)
+        invalidateTokenCache()
         rehighlight()
     }
 
@@ -105,17 +113,26 @@ class EditorViewModel : ViewModel() {
 
     private fun setText(text: String) {
         _fieldValue.value = TextFieldValue(text)
+        invalidateTokenCache()
         rehighlight()
+    }
+
+    private fun invalidateTokenCache() {
+        prevLines = emptyList()
+        prevTokens = emptyList()
     }
 
     private fun rehighlight() {
         val text = _fieldValue.value.text
         val lines = text.split("\n")
+        val tokensPerLine = tokenizeIncremental(lines)
+
         _highlighted.value = buildAnnotatedString {
             append(text)
             var offset = 0
-            for (line in lines) {
-                val tokens = lexer.tokenize(line)
+            for (i in lines.indices) {
+                val line = lines[i]
+                val tokens = tokensPerLine[i]
                 for (token in tokens) {
                     addStyle(
                         SpanStyle(color = token.color),
@@ -126,5 +143,52 @@ class EditorViewModel : ViewModel() {
                 offset += line.length + 1 // +1 for \n
             }
         }
+
+        prevLines = lines
+        prevTokens = tokensPerLine
+    }
+
+    /**
+     * Re-tokenizes only the lines that changed since the last call, reusing
+     * cached tokens for everything else. Finds the common prefix and suffix
+     * (by content, not index) between the old and new line lists, so a
+     * single inserted/deleted line doesn't invalidate the whole cache.
+     */
+    private fun tokenizeIncremental(lines: List<String>): List<List<Token>> {
+        val oldLines = prevLines
+        val oldTokens = prevTokens
+
+        val minSize = minOf(lines.size, oldLines.size)
+
+        var prefixLen = 0
+        while (prefixLen < minSize && lines[prefixLen] == oldLines[prefixLen]) {
+            prefixLen++
+        }
+
+        val maxSuffix = minSize - prefixLen
+        var suffixLen = 0
+        while (suffixLen < maxSuffix &&
+            lines[lines.size - 1 - suffixLen] == oldLines[oldLines.size - 1 - suffixLen]
+        ) {
+            suffixLen++
+        }
+
+        val result = ArrayList<List<Token>>(lines.size)
+
+        for (i in 0 until prefixLen) {
+            result.add(oldTokens[i])
+        }
+
+        val middleEnd = lines.size - suffixLen
+        for (i in prefixLen until middleEnd) {
+            result.add(lexer.tokenize(lines[i]))
+        }
+
+        for (i in 0 until suffixLen) {
+            val oldIndex = oldLines.size - suffixLen + i
+            result.add(oldTokens[oldIndex])
+        }
+
+        return result
     }
 }
