@@ -170,7 +170,6 @@ fun EditorScreen(viewModel: EditorViewModel) {
                     value = displayValue,
                     onValueChange = { viewModel.onValueChange(it) },
                     onTextLayout = { layoutResult = it },
-                    softWrap = wrapLines,
                     textStyle = TextStyle(
                         color = FG,
                         fontFamily = FontFamily.Monospace,
