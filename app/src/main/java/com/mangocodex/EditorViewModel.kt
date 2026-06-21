@@ -12,17 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 const val PATTERNS_INTERNAL_PATH = "patterns.csv"
 
-// How many logical lines beyond the visible viewport stay styled, so fast
-// scrolling doesn't show a flash of plain text before re-styling catches up.
 private const val WINDOW_MARGIN_LINES = 150
-
-// Only recompute the window once the visible range gets this close to the
-// edge of what's currently styled -- otherwise we'd rehighlight every pixel
-// of scroll instead of every ~WINDOW_MARGIN_LINES/3 lines.
 private const val WINDOW_SAFETY_LINES = WINDOW_MARGIN_LINES / 3
-
-// How far outside the current window cached tokens are kept before being
-// dropped, to bound memory growth on very large files.
 private const val CACHE_RETENTION_LINES = WINDOW_MARGIN_LINES * 3
 
 class EditorViewModel : ViewModel() {
@@ -41,16 +32,13 @@ class EditorViewModel : ViewModel() {
     private val _isDirty = MutableStateFlow(false)
     val isDirty: StateFlow<Boolean> = _isDirty
 
+    private val _wrapLines = MutableStateFlow(true)
+    val wrapLines: StateFlow<Boolean> = _wrapLines
+
     private var isPatternFile = false
 
-    // Only lines in this range get styled; everything else renders as plain
-    // text. This is what bounds the paint cost on large files: total styled
-    // run count depends on window size, not file size.
     private var styledRange: IntRange = 0..0
 
-    // Line index -> (line content at cache time, tokens). Keying by content
-    // means an edited line is automatically a cache miss without needing
-    // separate invalidation bookkeeping.
     private val tokenCache = HashMap<Int, Pair<String, List<Token>>>()
 
     private var lineStartOffsets: List<Int> = listOf(0)
@@ -68,6 +56,10 @@ class EditorViewModel : ViewModel() {
     private fun loadPatternsFromInternal(context: Context): String? {
         val file = context.getFileStreamPath(PATTERNS_INTERNAL_PATH)
         return if (file.exists()) file.readText() else null
+    }
+
+    fun toggleWrapLines() {
+        _wrapLines.value = !_wrapLines.value
     }
 
     fun openFile(context: Context, uri: Uri) {
@@ -136,11 +128,6 @@ class EditorViewModel : ViewModel() {
         rehighlight()
     }
 
-    /**
-     * Called from the UI whenever the visible character range changes (on
-     * scroll). Character offsets rather than line indices, since that's
-     * what TextLayoutResult gives us directly regardless of soft-wrap.
-     */
     fun updateVisibleRange(startOffset: Int, endOffset: Int) {
         val lineCount = lineStartOffsets.size
         if (lineCount == 0) return
@@ -200,7 +187,7 @@ class EditorViewModel : ViewModel() {
         var acc = 0
         for (line in lines) {
             offsets.add(acc)
-            acc += line.length + 1 // +1 for \n
+            acc += line.length + 1
         }
         lineStartOffsets = offsets
 

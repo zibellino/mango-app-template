@@ -3,7 +3,11 @@ package com.mangocodex
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -11,15 +15,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.debounce
@@ -28,7 +36,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 val BG = Color(0xFF1E1E1E)
 val FG = Color(0xFFD4D4D4)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun EditorScreen(viewModel: EditorViewModel) {
     val context = LocalContext.current
@@ -36,6 +44,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
     val highlighted by viewModel.highlighted.collectAsState()
     val isDirty by viewModel.isDirty.collectAsState()
     val currentUri by viewModel.currentFileUri.collectAsState()
+    val wrapLines by viewModel.wrapLines.collectAsState()
 
     var showMenu by remember { mutableStateOf(false) }
 
@@ -103,6 +112,14 @@ fun EditorScreen(viewModel: EditorViewModel) {
                                     showMenu = false
                                 }
                             )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(if (wrapLines) "✓ Wrap lines" else "Wrap lines") },
+                                onClick = {
+                                    viewModel.toggleWrapLines()
+                                    showMenu = false
+                                }
+                            )
                         }
                     }
                 }
@@ -110,55 +127,73 @@ fun EditorScreen(viewModel: EditorViewModel) {
         },
         containerColor = BG
     ) { padding ->
-        // Merge cursor/selection from fieldValue with highlighting from VM.
-        // Keyed remember() avoids a new identity (and a busted text-layout
-        // cache) on recompositions where neither input actually changed.
         val displayValue = remember(fieldValue, highlighted) {
             fieldValue.copy(annotatedString = highlighted)
         }
 
-        // Scrolling is now explicit (instead of BasicTextField's internal
-        // auto-scroll) so we can read scroll position and feed the view
-        // model a visible-range update -- that's what drives windowed
-        // styling below.
+        val density = LocalDensity.current
         val scrollState = rememberScrollState()
-        var viewportHeightPx by remember { mutableStateOf(0) }
+        val horizontalScrollState = rememberScrollState()
+        var viewportSize by remember { mutableStateOf(IntSize.Zero) }
         var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+        LaunchedEffect(wrapLines) {
+            horizontalScrollState.scrollTo(0)
+        }
+
+        val noOpBringIntoView = remember {
+            object : BringIntoViewSpec {
+                override fun calculateScrollDistance(
+                    offset: Float,
+                    size: Float,
+                    containerSize: Float
+                ) = 0f
+            }
+        }
+
+        val focusRequester = remember { FocusRequester() }
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(BG)
-                .onSizeChanged { viewportHeightPx = it.height }
+                .onSizeChanged { viewportSize = it }
                 .verticalScroll(scrollState)
+                .let { if (wrapLines) it else it.horizontalScroll(horizontalScrollState) }
         ) {
-            BasicTextField(
-                value = displayValue,
-                onValueChange = { viewModel.onValueChange(it) },
-                onTextLayout = { layoutResult = it },
-                textStyle = TextStyle(
-                    color = FG,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                ),
-                cursorBrush = SolidColor(FG),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            CompositionLocalProvider(LocalBringIntoViewSpec provides noOpBringIntoView) {
+                BasicTextField(
+                    value = displayValue,
+                    onValueChange = { viewModel.onValueChange(it) },
+                    onTextLayout = { layoutResult = it },
+                    textStyle = TextStyle(
+                        color = FG,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp
+                    ),
+                    cursorBrush = SolidColor(FG),
+                    modifier = Modifier
+                        .let {
+                            if (wrapLines) {
+                                it.fillMaxSize()
+                            } else {
+                                val minWidth = with(density) { viewportSize.width.toDp() }
+                                it.fillMaxHeight().widthIn(min = minWidth)
+                            }
+                        }
+                        .focusRequester(focusRequester)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
         }
 
-        // Re-evaluate which lines need styling once scrolling settles, not
-        // on every pixel of the gesture. Recomputing mid-scroll is exactly
-        // what was still causing stutter: each recompute hands the field a
-        // new AnnotatedString, which forces a full re-shape/re-layout of the
-        // whole document, not just a style patch. The margin in the view
-        // model absorbs short scrolls entirely; only a long continuous
-        // scroll shows a brief unstyled gap until it catches up here.
         LaunchedEffect(scrollState) {
-            snapshotFlow { Triple(scrollState.value, viewportHeightPx, layoutResult) }
+            snapshotFlow { Triple(scrollState.value, viewportSize.height, layoutResult) }
                 .distinctUntilChanged()
                 .debounce(120)
                 .collect { (scrollOffset, viewportHeight, result) ->
