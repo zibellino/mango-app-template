@@ -1,19 +1,29 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
+val appProps = Properties().apply {
+    load(FileInputStream(rootProject.file("app.properties")))
+}
+val appName: String = appProps.getProperty("app.name")
+val appPackage: String = appProps.getProperty("app.package")
+
 android {
-    namespace = "com.mangocodex"
+    namespace = appPackage
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.mangocodex"
+        applicationId = appPackage
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        resValue("string", "app_name", appName)
     }
 
     buildTypes {
