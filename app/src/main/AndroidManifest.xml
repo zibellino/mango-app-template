@@ -1,21 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+    No <activity> declared here on purpose — this template ships with an
+    empty app/src/main/java. Once you add your own Activity (e.g.
+    MainActivity.kt), declare it here with a MAIN/LAUNCHER intent-filter,
+    e.g.:
+
+    <activity
+        android:name=".MainActivity"
+        android:exported="true">
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+    </activity>
+
+    Without this, the app builds and installs but has no launcher entry —
+    which is intentional for an empty template, rather than crashing on
+    launch by pointing at a class that doesn't exist.
+    -->
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.App">
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
 
     </application>
 
