@@ -18,26 +18,17 @@ Most of this derives automatically at build time:
 - `AndroidManifest.xml` reads `@string/app_name` for the label — never hardcoded
 - `app.version` is the fallback `versionName` for local/dev builds (see Versioning below)
 
-**One thing does NOT derive automatically:** if you change `app.package`, you must also create/move `app/src/main/java/...` to match the new package path, and set the matching `package ...` line at the top of your Kotlin files. The `namespace`/`applicationId` in Gradle and the folder structure of your Kotlin sources are two different things — Gradle doesn't create or rename folders for you.
+## MainActivity — flat, no package, nothing to rename
 
-## No source, no launcher activity — by design
+`app/src/main/kotlin/MainActivity.kt` is a black-screen placeholder, and it's genuinely your **real** MainActivity — not a throwaway to delete later. Build your actual UI directly into this file.
 
-`app/src/main/java` ships empty. Because of that, `AndroidManifest.xml` deliberately declares **no `<activity>`**. The app builds and installs fine, it just has nothing to launch — no crash, no app-drawer entry, until you add your own Activity.
+It has no `package` declaration and sits with no folder nesting under `kotlin/`. Kotlin doesn't require source layout to mirror package structure (that's an IDE/Java convention, not a compiler rule), so this is legal and compiles fine. It also means the file is completely independent of `app.package` in `app.properties` — rename your app all you want, this file never moves and never needs editing for that reason.
 
-When you add one (e.g. `MainActivity.kt`), declare it in the manifest yourself:
+The manifest reflects this: `android:name="MainActivity"` has no leading dot, because that's the actual fully-qualified name of a default-package class (a leading dot is Android's shorthand for "prepend the namespace").
 
-```xml
-<activity
-    android:name=".MainActivity"
-    android:exported="true">
-    <intent-filter>
-        <action android:name="android.intent.action.MAIN" />
-        <category android:name="android.intent.category.LAUNCHER" />
-    </intent-filter>
-</activity>
-```
+`src/main/kotlin` (rather than the more common `src/main/java`) is used here since AGP recognizes both as default source roots, and this is a pure-Kotlin project with no Java files.
 
-(A commented-out copy of this is already sitting in the manifest as a reminder.)
+If you eventually want it under a real package, add a `package ...` line as the first line of the file and move it wherever you like — nothing about the build depends on it staying flat.
 
 ## Versioning
 
