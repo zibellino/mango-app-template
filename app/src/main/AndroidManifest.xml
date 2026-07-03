@@ -2,13 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-    android:name="MainActivity" — no leading dot, no package. Android's
-    manifest rule: a leading "." means "prepend the namespace package"; a
-    name with no leading dot is used as-is as the fully qualified class
-    name. MainActivity.kt has no package declaration (Kotlin's default
-    package), so its fully qualified name genuinely is just "MainActivity".
-    This is why it isn't written as ".MainActivity" the way a namespaced
-    Activity normally would be.
+    android:name is a fully qualified reference to androidx.activity's own
+    ComponentActivity class — already a dependency here, already concrete
+    and instantiable, default onCreate() does nothing beyond lifecycle
+    setup. No custom Kotlin file needed for a blank launcher screen.
+
+    Replace with your own Activity (".MainActivity", package-qualified in
+    the usual way) once you're writing real UI.
     -->
     <application
         android:allowBackup="true"
@@ -17,7 +17,7 @@
         android:theme="@style/Theme.App">
 
         <activity
-            android:name="MainActivity"
+            android:name="androidx.activity.ComponentActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
