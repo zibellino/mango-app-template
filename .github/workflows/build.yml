@@ -37,12 +37,6 @@ jobs:
           echo "version_code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Cache signing keystore
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: signing-keystore-v1
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -51,6 +45,12 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Cache signing keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: signing-keystore-v1
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -107,5 +107,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.appcfg.outputs.app_name }}-${{ github.event.release.tag_name }}.apk
-
-          
