@@ -4,13 +4,7 @@ Android app template, builds with Gradle on GitHub.
 
 ## Using this template for a new app
 
-Edit `app.properties` at the repo root:
-
-```
-app.name=YourAppName
-app.package=com.yourorg.yourapp
-app.version=0.1.0
-```
+Edit `app.properties` at the repo root.
 
 Most of this derives automatically at build time:
 - `settings.gradle.kts` reads `app.name` for `rootProject.name`
