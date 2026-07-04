@@ -3,7 +3,6 @@ import java.io.FileInputStream
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -23,12 +22,12 @@ val ciVersionName = project.findProperty("appVersionName") as String?
 
 android {
     namespace = appPackage
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = appPackage
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = ciVersionCode ?: 1
         versionName = ciVersionName ?: appProps.getProperty("app.version", "0.1.0")
         resValue("string", "app_name", appName)
@@ -56,12 +55,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
+        resValues = true
     }
 }
 
