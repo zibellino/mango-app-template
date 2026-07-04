@@ -6,12 +6,6 @@ Android app template, builds with Gradle on GitHub.
 
 Edit `app.properties` at the repo root.
 
-Most of this derives automatically at build time:
-- `settings.gradle.kts` reads `app.name` for `rootProject.name`
-- `app/build.gradle.kts` reads `app.package` for `namespace`/`applicationId`, and injects `app.name` as the `app_name` string resource
-- `AndroidManifest.xml` reads `@string/app_name` for the label — never hardcoded
-- `app.version` is the fallback `versionName` for local/dev builds (see Versioning below)
-
 ## No source, black screen on launch — no custom Activity needed
 
 There is no `MainActivity.kt` in this template, and none is required for it to launch cleanly. The manifest's launcher `<activity>` points directly at `androidx.activity.ComponentActivity` — the base class every Compose Activity ultimately extends, already a dependency here, concrete and instantiable as-is. Its default `onCreate()` does nothing beyond standard lifecycle setup, so you get a blank screen (black, via `Theme.App`'s `windowBackground`) with no crash and no placeholder file to write, delete, or relocate.
