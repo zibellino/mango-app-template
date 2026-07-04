@@ -29,7 +29,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = ciVersionCode ?: 1
-        versionName = ciVersionName ?: appProps.getProperty("app.version", "0.1.0")
+        versionName = ciVersionName ?: error("appVersionName must be set via -PappVersionName")
         resValue("string", "app_name", appName)
     }
 
